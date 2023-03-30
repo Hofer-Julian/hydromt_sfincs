@@ -22,6 +22,7 @@ from hydromt.io import write_xy
 from scipy import ndimage
 from pyflwdir.regions import region_area
 from hydromt_sfincs.workflows import tiling
+import math
 
 __all__ = [
     "read_inp",
@@ -48,6 +49,9 @@ __all__ = [
     "read_sfincs_his_results",
     "mask_bounds",
     "mask_topobathy",
+    "downscale_floodmap",
+    "downscale_floodmap_webmercator",
+    "rotated_grid",
 ]
 
 logger = logging.getLogger(__name__)
@@ -1202,3 +1206,33 @@ def downscale_floodmap_webmercator(
                     fid.close()
                 elif fmt_out == "png":
                     tiling.elevation2png(hmax, floodmap_fn)
+
+def _azimuth(point1, point2):
+    """azimuth between 2 points (interval 0 - 180)"""
+    angle = np.arctan2(point2[0] - point1[0], point2[1] - point1[1])
+    return np.degrees(angle) if angle > 0 else np.degrees(angle) + 180
+
+def _dist(a, b):
+    """distance between points"""
+    return math.hypot(b[0] - a[0], b[1] - a[1])
+
+def rotated_grid(mrr, res):
+    """azimuth of minimum_rotated_rectangle as well as the x0,y0, nmax and mmax of the rotated grid"""
+    bbox = list(mrr.exterior.coords)
+    axis1 = _dist(bbox[0], bbox[3])
+    axis2 = _dist(bbox[0], bbox[1])
+
+    # let's assume the longer axis is the x-axis
+    if axis1 <= axis2:
+        mmax = int(np.ceil(axis2 / res))
+        nmax = int(np.ceil(axis1 / res))
+        az = _azimuth(bbox[0], bbox[1])
+        x0, y0 = bbox[0]
+    else:
+        mmax = int(np.ceil(axis1 / res))
+        nmax = int(np.ceil(axis2 / res))
+        az = _azimuth(bbox[0], bbox[3])
+        x0, y0 = bbox[3]
+    
+    return x0,y0,mmax,nmax,az  
+        

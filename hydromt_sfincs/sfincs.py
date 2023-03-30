@@ -250,6 +250,7 @@ class SfincsModel(MeshMixin, GridModel):
         self,
         gdf_region: gpd.GeoDataFrame,
         res: float,
+        minimum_rotated_rectangle: bool = False,
     ):
         """Creates a regular or quadtree grid from a region.
 
@@ -259,20 +260,33 @@ class SfincsModel(MeshMixin, GridModel):
             GeoDataFrame with a single polygon defining the region
         res : float
             grid resolution
+        minimum_rotated_rectangle : bool, optional
+            if True, a minimum rotated rectangular grid is fitted around the region, by default False
         """
-        west, south, east, north = gdf_region.total_bounds
-        mmax = int(np.ceil((east - west) / res))
-        nmax = int(np.ceil((north - south) / res))
         # TODO gdf_region.minimum_rotated_rectangle for rotated grid
         # https://stackoverflow.com/questions/66108528/angle-in-minimum-rotated-rectangle
+
+        # NOTE keyword minimum_rotated_rectangle is added to still have the possibility to create unrotated grids if needed (e.g. for FEWS?)
+        if minimum_rotated_rectangle:
+            # assuming that is is a single geometry
+            mrr = gdf_region.geometry.iloc[0].minimum_rotated_rectangle
+            x0,y0,mmax,nmax,az = utils.rotated_grid(mrr,res)
+            rotation = 90 - az
+        else:
+            west, south, east, north = gdf_region.total_bounds
+            x0 = west
+            y0 = south
+            mmax = int(np.ceil((east - west) / res))
+            nmax = int(np.ceil((north - south) / res))
+            rotation = 0
         self.create_grid(
-            x0=west,
-            y0=south,
+            x0=x0,
+            y0=y0,
             dx=res,
             dy=res,
             nmax=nmax,
             mmax=mmax,
-            rotation=0,  # Set rotation to 0 for grid based on region (see also TODO)
+            rotation=rotation,  # Set rotation to 0 for grid based on region (see also TODO)
             epsg=gdf_region.crs.to_epsg(),
         )
 
